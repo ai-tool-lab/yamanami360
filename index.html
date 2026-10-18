@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>山並み360°｜淵野辺 — 丹沢・秩父山系 完全パノラマ</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <style>
+    :root {
+      --bg-panel: rgba(12, 19, 28, 0.92);
+      --border-light: rgba(255, 255, 255, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-orange: #fb923c;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-sans: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%; height: 100%; overflow: hidden;
+      background-color: #0b131e; font-family: var(--font-sans);
+      color: var(--text-main); user-select: none;
+    }
+    #canvas-container { position: fixed; inset: 0; z-index: 1; }
+
+    /* ヘッダー */
+    .app-header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px; padding: 12px 18px;
+      background: linear-gradient(180deg, rgba(8,13,20,0.96) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    .header-group { display: flex; align-items: center; gap: 8px; pointer-events: auto; flex-wrap: wrap; }
+    .brand-title { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.5px; }
+    .brand-sub { font-size: 11px; color: var(--text-muted); }
+
+    .pill-group {
+      display: inline-flex; background: var(--bg-panel); backdrop-filter: blur(10px);
+      border: 1px solid var(--border-light); border-radius: 9px; padding: 3px; gap: 3px;
+    }
+    .btn {
+      background: transparent; border: 1px solid transparent; color: var(--text-muted);
+      padding: 6px 11px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .btn.active {
+      background: rgba(56, 189, 248, 0.22); border-color: var(--accent-blue);
+      color: #fff; box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+    }
+    .btn.active.chichibu-btn {
+      background: rgba(251, 146, 60, 0.22); border-color: var(--accent-orange);
+      box-shadow: 0 0 10px rgba(251, 146, 60, 0.3);
+    }
+
+    /* 山名ラベルレイヤー */
+    #label-layer { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+    .poi-label {
+      position: absolute; transform: translate(-50%, -100%);
+      pointer-events: auto; cursor: pointer; display: flex;
+      flex-direction: column; align-items: center;
+    }
+    .poi-box {
+      background: rgba(11, 18, 28, 0.92); backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 6px;
+      padding: 3px 8px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.55);
+      display: flex; align-items: baseline; gap: 4px; transition: all 0.2s ease;
+    }
+    .poi-label:hover .poi-box, .poi-label.selected .poi-box {
+      background: rgba(14, 38, 58, 0.98); border-color: var(--accent-blue);
+      transform: translateY(-2px); box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+    }
+    .poi-label.spot .poi-box {
+      background: rgba(28, 20, 12, 0.92); border-color: rgba(251, 146, 60, 0.55);
+    }
+    .poi-label.spot:hover .poi-box, .poi-label.spot.selected .poi-box {
+      background: rgba(45, 26, 14, 0.98); border-color: var(--accent-orange);
+      box-shadow: 0 0 14px rgba(251, 146, 60, 0.6);
+    }
+    .poi-name { font-size: 12px; font-weight: 700; color: #fff; }
+    .poi-elev { font-size: 10px; color: var(--accent-blue); font-weight: 600; }
+    .poi-label.spot .poi-elev { color: var(--accent-orange); }
+    .poi-stem { width: 1.5px; height: 16px; background: linear-gradient(180deg, var(--accent-blue), rgba(255,255,255,0.2)); }
+    .poi-label.spot .poi-stem { background: linear-gradient(180deg, var(--accent-orange), rgba(255,255,255,0.2)); }
+    .poi-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-blue); border: 1.5px solid #fff; }
+    .poi-label.spot .poi-dot { background: var(--accent-orange); }
+
+    /* 右側詳細パネル */
+    #detail-panel {
+      position: fixed; top: 65px; right: 18px; bottom: 80px; width: 360px;
+      max-width: calc(100vw - 36px); z-index: 30; background: var(--bg-panel);
+      backdrop-filter: blur(16px); border: 1px solid var(--border-light);
+      border-radius: 14px; display: none; flex-direction: column; overflow: hidden;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.65);
+    }
+    #detail-panel.open { display: flex; }
+    .dp-header {
+      padding: 14px 16px; border-bottom: 1px solid var(--border-light);
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .dp-close {
+      background: rgba(255,255,255,0.08); border: 1px solid var(--border-light);
+      color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+    }
+    .dp-body { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; font-size: 12px; line-height: 1.6; }
+    .dp-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dp-stat { background: rgba(255,255,255,0.04); border: 1px solid var(--border-light); border-radius: 8px; padding: 7px 10px; }
+    .dp-stat-label { font-size: 10px; color: var(--text-muted); }
+    .dp-stat-val { font-size: 13px; font-weight: 700; color: #fff; margin-top: 2px; }
+
+    /* 説明テキストのタイトル（動的カラー変更対応） */
+    .dp-section-title {
+      font-size: 11.5px; font-weight: 700;
+      color: var(--accent-blue);
+      border-left: 3px solid var(--accent-blue);
+      padding-left: 6px; margin-bottom: 4px;
+      transition: all 0.2s ease;
+    }
+    /* オレンジマーカー選択時のオレンジスタイル */
+    #detail-panel.theme-orange .dp-section-title {
+      color: var(--accent-orange);
+      border-left-color: var(--accent-orange);
+    }
+    #detail-panel.theme-orange #dp-category {
+      color: var(--accent-orange) !important;
+    }
+    #detail-panel.theme-orange #dp-links a {
+      color: var(--accent-orange) !important;
+    }
+
+    .hut-card { background: rgba(255,255,255,0.04); border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+
+    /* 左下 ミニマップ */
+    #minimap-box {
+      position: fixed; bottom: 74px; left: 18px; z-index: 20; width: 185px; height: 185px;
+      background: var(--bg-panel); backdrop-filter: blur(10px); border: 1px solid var(--border-light);
+      border-radius: 12px; padding: 8px; display: flex; flex-direction: column;
+    }
+    #minimap-canvas { width: 100%; flex: 1; border-radius: 6px; background: #081119; }
+
+    /* フッター */
+    .app-footer {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 20; padding: 10px 18px;
+      background: linear-gradient(0deg, rgba(8,13,20,0.96) 0%, transparent 100%);
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      font-size: 11px; color: var(--text-muted); flex-wrap: wrap;
+    }
+    .compass-wrap { width: 280px; height: 28px; background: rgba(10,16,24,0.9); border: 1px solid var(--border-light); border-radius: 7px; overflow: hidden; }
+    #compass-canvas { width: 100%; height: 100%; }
+
+    @media (max-width: 800px) {
+      #detail-panel { left: 10px; right: 10px; width: auto; height: 50vh; bottom: 75px; }
+      #minimap-box { display: none; }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+  <div id="label-layer"></div>
+
+  <!-- ヘッダー -->
+  <header class="app-header">
+    <div class="header-group">
+      <div>
+        <div class="brand-title">⛰️ 山並み360°｜淵野辺</div>
+        <div class="brand-sub">丹沢表尾根 ＆ 秩父・奥秩父山系 実測3Dパノラマ</div>
+      </div>
+      <div class="pill-group">
+        <button class="btn active" id="btn-tanzawa-full">丹沢山系 全景 (西南西)</button>
+        <button class="btn" id="btn-chichibu-full">秩父山系 全景 (西北西)</button>
+        <button class="btn" id="btn-focus-oyama">大山 周辺</button>
+        <button class="btn" id="btn-focus-tonodake">塔ノ岳・鍋割山</button>
+        <button class="btn" id="btn-focus-chichibu-main">奥秩父主脈 (甲武信・雲取)</button>
+      </div>
+    </div>
+    <div class="header-group">
+      <div class="pill-group">
+        <button class="btn active" id="btn-toggle-peaks">山頂ピーク: ON</button>
+        <button class="btn active" id="btn-toggle-spots">峠・スポット: ON</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 左下 ミニマップ -->
+  <div id="minimap-box">
+    <div style="font-size:10px; color:var(--text-muted); margin-bottom:4px; font-weight:600;" id="mm-title">広域レーダー (R=80km)</div>
+    <canvas id="minimap-canvas" width="200" height="200"></canvas>
+  </div>
+
+  <!-- 右側 詳細パネル -->
+  <aside id="detail-panel">
+    <div class="dp-header">
+      <div>
+        <div style="font-size:10px; color:var(--accent-blue); font-weight:700;" id="dp-category">山岳・地点区分</div>
+        <div style="font-size:18px; font-weight:800; color:#fff;" id="dp-name">名称</div>
+        <div style="font-size:10px; color:var(--text-muted);" id="dp-kana">ふりがな</div>
+      </div>
+      <button class="dp-close" id="dp-close-btn">✕</button>
+    </div>
+    <div class="dp-body">
+      <div class="dp-stat-grid">
+        <div class="dp-stat">
+          <div class="dp-stat-label">標高 (国土地理院基準)</div>
+          <div class="dp-stat-val" id="dp-elev">— m</div>
+        </div>
+        <div class="dp-stat">
+          <div class="dp-stat-label">淵野辺駅からの直線距離</div>
+          <div class="dp-stat-val" id="dp-dist">— km</div>
+        </div>
+        <div class="dp-stat">
+          <div class="dp-stat-label">方位角 / 16方位</div>
+          <div class="dp-stat-val" id="dp-az">—°</div>
+        </div>
+        <div class="dp-stat">
+          <div class="dp-stat-label">淵野辺からの見通し仰角</div>
+          <div class="dp-stat-val" id="dp-angle">—°</div>
+        </div>
+      </div>
+      <div>
+        <div class="dp-section-title">所在地・山岳概要</div>
+        <p id="dp-desc">—</p>
+      </div>
+      <div>
+        <div class="dp-section-title">登山ルート・位置関係</div>
+        <p id="dp-routes">—</p>
+      </div>
+      <div>
+        <div class="dp-section-title">関連施設・山小屋・地勢情報</div>
+        <div id="dp-huts"></div>
+      </div>
+      <div>
+        <div class="dp-section-title">外部地図リンク</div>
+        <div id="dp-links" style="font-size:11px;"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- フッター -->
+  <footer class="app-footer">
+    <div>観測地点: <strong>JR淵野辺駅</strong> (35.56849°N, 139.39529°E / 標高 121m + 目線1.6m)</div>
+    <div class="compass-wrap">
+      <canvas id="compass-canvas" width="280" height="28"></canvas>
+    </div>
+    <div>操作: ドラッグで見回し / ホイールでズーム / ラベルをクリックで詳細表示</div>
+  </footer>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    // 観測基準点：JR淵野辺駅
+    const OBSERVER = { lat: 35.56849, lon: 139.39529, groundElev: 121.0, eyeOffset: 1.6 };
+    const EARTH_RADIUS = 6371000;
+    const REFRACTION_K = 0.13;
+    const DEG2RAD = Math.PI / 180;
+    const RAD2DEG = 180 / Math.PI;
+    const METERS_PER_DEG_LAT = 111132.95;
+    const METERS_PER_DEG_LON = 111319.49 * Math.cos(OBSERVER.lat * DEG2RAD);
+
+    function latLonToLocalXZ(lat, lon) {
+      return {
+        x: (lon - OBSERVER.lon) * METERS_PER_DEG_LON,
+        z: -(lat - OBSERVER.lat) * METERS_PER_DEG_LAT
+      };
+    }
+
+    function curvatureDrop(distMeters) {
+      return (distMeters * distMeters) / (2 * EARTH_RADIUS) * (1.0 - REFRACTION_K);
+    }
+
+    // 全山岳・ランドマーク完全データベース
+    const ALL_POIS = [
+      // --- 丹沢山系（山頂ピーク） ---
+      {
+        id: 'oyama', name: '大山', kana: 'おおやま', elev: 1252, lat: 35.44083, lon: 139.23139, type: 'peak', range: '丹沢山系',
+        desc: '丹沢山地の東端にそびえるピラミッド型の秀峰。古くからの信仰の山で、南西方向に最も大きく鮮明に見えます。',
+        routes: 'ヤビツ峠〜イタツミ尾根〜山頂、表参道（大山ケーブル下社〜本坂〜山頂）',
+        huts: [{ name: '大山山頂茶屋', desc: '山頂直下（売店・軽食営業）' }]
+      },
+      {
+        id: 'dakedai', name: '岳ノ台', kana: 'だけのだい', elev: 899, lat: 35.43000, lon: 139.20833, type: 'peak', range: '丹沢山系',
+        desc: 'ヤビツ峠と菩提峠の間に位置する展望ピーク。大山や表尾根の眺望が広がります。',
+        routes: 'ヤビツ峠〜岳ノ台〜菩提峠コース', huts: []
+      },
+      {
+        id: 'ninotou', name: '二ノ塔', kana: 'にのとう', elev: 1144, lat: 35.43889, lon: 139.20139, type: 'peak', range: '丹沢山系',
+        desc: '菩提峠・ヤビツ峠から登って表尾根主稜線に出る最初のピーク。三ノ塔のすぐ東側に並びます。',
+        routes: 'ヤビツ峠〜菩提峠〜二ノ塔〜三ノ塔', huts: []
+      },
+      {
+        id: 'sannotou', name: '三ノ塔', kana: 'さんのとう', elev: 1205, lat: 35.44194, lon: 139.19306, type: 'peak', range: '丹沢山系',
+        desc: '丹沢表尾根の前哨をなす展望の優れたピーク。山頂には無人休憩舎（トイレ付）があります。',
+        routes: '二ノ塔〜三ノ塔〜烏尾山、大倉〜牛首〜三ノ塔尾根',
+        huts: [{ name: '三ノ塔休憩舎', desc: '山頂（無人避難小屋）' }]
+      },
+      {
+        id: 'karasuo', name: '烏尾山', kana: 'からすおやま', elev: 1136, lat: 35.44361, lon: 139.18667, type: 'peak', range: '丹沢山系',
+        desc: '三ノ塔と行者岳の間にある鋭角な三角のピーク。三角屋根の烏尾山荘が建っています。',
+        routes: '表尾根縦走路（三ノ塔〜烏尾山〜行者岳）',
+        huts: [{ name: '烏尾山荘', desc: '山頂（週末等に営業）' }]
+      },
+      {
+        id: 'gyojadake', name: '行者岳', kana: 'ぎょうじゃだけ', elev: 1180, lat: 35.44528, lon: 139.18250, type: 'peak', range: '丹沢山系',
+        desc: 'かつて修験者が修行した険しい岩峰。鎖場が連続する表尾根のハイライト区間です。',
+        routes: '表尾根縦走路（烏尾山〜行者岳〜新大日）', huts: []
+      },
+      {
+        id: 'masajiro', name: '政次郎ノ頭', kana: 'まさじろうのあたま', elev: 1209, lat: 35.44750, lon: 139.18000, type: 'peak', range: '丹沢山系',
+        desc: '行者岳と新大日の間にあるピーク。戸沢へ下る政次郎尾根の分岐点です。',
+        routes: '表尾根縦走路、政次郎尾根〜戸沢出合', huts: []
+      },
+      {
+        id: 'shindainichi', name: '新大日', kana: 'しんだいにち', elev: 1340, lat: 35.45194, lon: 139.17639, type: 'peak', range: '丹沢山系',
+        desc: '表尾根と長尾尾根が合流する要衝ピーク。塔ノ岳の手前に連なります。',
+        routes: '表尾根縦走路（行者岳〜新大日〜木ノ又大日〜塔ノ岳）', huts: []
+      },
+      {
+        id: 'kinomatadainichi', name: '木ノ又大日', kana: 'きのまただいにち', elev: 1396, lat: 35.45278, lon: 139.17028, type: 'peak', range: '丹沢山系',
+        desc: '新大日と塔ノ岳の中間にある小ピーク。木ノ又小屋が営業しています。',
+        routes: '表尾根縦走路（新大日〜木ノ又大日〜塔ノ岳）',
+        huts: [{ name: '木ノ又小屋', desc: '山頂直下（週末営業・コーヒー喫茶）' }]
+      },
+      {
+        id: 'tonodake', name: '塔ノ岳', kana: 'とうのだけ', elev: 1491, lat: 35.45389, lon: 139.16306, type: 'peak', range: '丹沢山系',
+        desc: '表尾根、大倉尾根、主脈が合流する丹沢の盟主峰。大展望と山頂の尊仏山荘で有名です。',
+        routes: '大倉尾根（バカ尾根）、ヤビツ峠〜表尾根縦走コース',
+        huts: [{ name: '尊仏山荘', desc: '山頂直下（通年営業・要予約）' }]
+      },
+      {
+        id: 'odamaru', name: '大丸', kana: 'おおまる', elev: 1386, lat: 35.44889, lon: 139.15389, type: 'peak', range: '丹沢山系',
+        desc: '塔ノ岳から金冷シを経て鍋割山へ続く鍋割山稜上の小ピーク。',
+        routes: '鍋割山稜縦走路（金冷シ〜大丸〜小丸〜鍋割山）', huts: []
+      },
+      {
+        id: 'komaru', name: '小丸', kana: 'こまる', elev: 1341, lat: 35.44667, lon: 139.14583, type: 'peak', range: '丹沢山系',
+        desc: '鍋割山稜の中間ピーク。二俣へ下る小丸尾根の分岐点です。',
+        routes: '鍋割山稜縦走路、小丸尾根コース（小丸〜二俣）', huts: []
+      },
+      {
+        id: 'nabewarisan', name: '鍋割山', kana: 'なべわりやま', elev: 1272, lat: 35.44417, lon: 139.13806, type: 'peak', range: '丹沢山系',
+        desc: '名物の鍋焼きうどんで有名な鍋割山荘が山頂にあり、相模湾の展望に優れます。',
+        routes: '大倉〜二俣〜後沢乗越〜鍋割山',
+        huts: [{ name: '鍋割山荘', desc: '山頂（名物・鍋焼きうどん・宿泊営業）' }]
+      },
+
+      // --- 丹沢山系（スポット・峠・山小屋：オレンジ） ---
+      {
+        id: 'yabitsu', name: 'ヤビツ峠', kana: 'やびつとうげ', elev: 761, lat: 35.42639, lon: 139.21472, type: 'spot', range: '丹沢山系',
+        desc: '大山と表尾根の鞍部に位置する代表的登山口。売店やバス停があります。',
+        routes: '秦野駅より路線バス運行、大山・表尾根双方への登山口',
+        huts: [{ name: 'ヤビツ峠レストハウス', desc: '峠広場（カフェ・軽食・売店）' }]
+      },
+      {
+        id: 'bodaitouge', name: '菩提峠', kana: 'ぼだいとうげ', elev: 760, lat: 35.43389, lon: 139.20694, type: 'spot', range: '丹沢山系',
+        desc: 'ヤビツ峠の奥にある峠。二ノ塔・三ノ塔への静かな登山口です。',
+        routes: '菩提峠〜二ノ塔コース', huts: []
+      },
+      {
+        id: 'afuri_shimosha', name: '大山阿夫利神社下社', kana: 'あふりじんじゃしもしゃ', elev: 700, lat: 35.43194, lon: 139.23250, type: 'spot', range: '丹沢山系',
+        desc: 'ケーブルカー終点にある霊峰大山の中心社殿。相模湾を一望する絶景地です。',
+        routes: '大山ケーブルカー阿夫利神社駅下車すぐ', huts: []
+      },
+      {
+        id: 'fujimidai', name: '富士見台（大山）', kana: 'ふじみだい', elev: 1040, lat: 35.43722, lon: 139.22722, type: 'spot', range: '丹沢山系',
+        desc: '大山下社から本坂を登る途中にある展望ポイント。富士山がよく見えます。',
+        routes: '大山本坂表参道（二十丁目付近）', huts: []
+      },
+      {
+        id: 'kanahiyashi', name: '金冷シ', kana: 'かねひやし', elev: 1430, lat: 35.45083, lon: 139.16139, type: 'spot', range: '丹沢山系',
+        desc: '大倉尾根と鍋割山稜が合流する塔ノ岳直下の痩せ尾根分岐点。',
+        routes: '大倉尾根〜塔ノ岳、鍋割山稜への分岐', huts: []
+      },
+      {
+        id: 'hanatate', name: '花立山荘', kana: 'はなたてさんそう', elev: 1300, lat: 35.44667, lon: 139.16444, type: 'spot', range: '丹沢山系',
+        desc: '大倉尾根の急登を登り切った絶景地にある山荘。',
+        routes: '大倉尾根中腹', huts: [{ name: '花立山荘', desc: '週末営業' }]
+      },
+      {
+        id: 'okura', name: '大倉（秦野戸川公園）', kana: 'おおくら', elev: 290, lat: 35.40556, lon: 139.17417, type: 'spot', range: '丹沢山系',
+        desc: '丹沢登山の最大拠点。秦野戸川公園の風の吊り橋やビジターセンターがあります。',
+        routes: '渋沢駅より大倉行バス終点', huts: []
+      },
+
+      // --- 秩父・奥秩父山系（山頂ピーク） ---
+      {
+        id: 'kumotori', name: '雲取山', kana: 'くもとりやま', elev: 2017, lat: 35.85556, lon: 138.94361, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '標高2,017mの東京都最高峰（日本百名山）。奥秩父主脈の東端にそびえる雄大な山です。',
+        routes: '鴨沢〜小袖乗越〜雲取山、三峯神社〜雲取山',
+        huts: [{ name: '雲取山荘', desc: '山頂北側直下（通年営業）' }]
+      },
+      {
+        id: 'bukosan', name: '武甲山', kana: 'ぶこうさん', elev: 1304, lat: 35.95167, lon: 139.09806, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '秩父盆地南側のランドマーク（日本二百名山）。石灰岩採掘による階段状の山容で有名です。',
+        routes: '横瀬駅〜一の鳥居〜表参道〜山頂', huts: []
+      },
+      {
+        id: 'shiraiwayama', name: '白岩山', kana: 'しらいわやま', elev: 1925, lat: 35.87528, lon: 138.94333, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '三峯神社から雲取山へ続く縦走路上のピーク。',
+        routes: '三峰〜雲取山縦走路', huts: []
+      },
+      {
+        id: 'ryubamisan', name: '竜喰山', kana: 'りゅうばみやま', elev: 2012, lat: 35.82361, lon: 138.89556, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '大常木山と笠取山を結ぶ奥秩父主脈南面の静かな2000m峰。',
+        routes: '一ノ瀬高原〜将監峠〜竜喰山', huts: []
+      },
+      {
+        id: 'kirisomamine', name: '霧藻ヶ峰', kana: 'きりもがみね', elev: 1523, lat: 35.90806, lon: 138.95667, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '三峯神社から雲取山への登山口にあるピーク。秩父宮殿下が命名。',
+        routes: '三峯神社〜霧藻ヶ峰', huts: [{ name: '霧藻ヶ峰休憩所', desc: '山頂（週末営業）' }]
+      },
+      {
+        id: 'kumakurayama', name: '熊倉山', kana: 'くまくらやま', elev: 1427, lat: 35.92278, lon: 138.99500, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '深い自然林と険しい登山道で知られる秩父の名峰。',
+        routes: '白久駅〜城山コース、武州日野駅〜日野コース', huts: []
+      },
+      {
+        id: 'wanagurayama', name: '和名倉山', kana: 'わなぐらやま', elev: 2036, lat: 35.89722, lon: 138.87833, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '奥秩父の最深部に広がる原生林の山（日本二百名山）。',
+        routes: '川又〜二瀬ダム〜和名倉山', huts: []
+      },
+      {
+        id: 'karasakadaira', name: '雁坂嶺', kana: 'かりさかれい', elev: 2289, lat: 35.87000, lon: 138.81528, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '日本三大峠「雁坂峠（2,082m）」の西側にそびえる奥秩父主脈の高峰。',
+        routes: '雁坂峠〜雁坂嶺、甲武信ヶ岳〜破不山〜雁坂嶺',
+        huts: [{ name: '雁坂小屋', desc: '雁坂峠直下（シーズン営業・要予約）' }]
+      },
+      {
+        id: 'nishihafusan', name: '西破不山', kana: 'にしはふさん', elev: 2318, lat: 35.88167, lon: 138.78361, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '甲武信ヶ岳と雁坂嶺の間にある笹原が広がる展望峰。',
+        routes: '奥秩父主脈縦走路（甲武信ヶ岳〜破不山〜雁坂峠）', huts: []
+      },
+      {
+        id: 'tokusayama', name: '木賊山', kana: 'とくさやま', elev: 2469, lat: 35.89889, lon: 138.73694, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '甲武信ヶ岳の南東隣に位置するどっしりとした山。西沢渓谷からのルートが合流。',
+        routes: '西沢渓谷〜戸渡尾根〜木賊山〜甲武信ヶ岳', huts: []
+      },
+      {
+        id: 'kobushigatake', name: '甲武信ヶ岳', kana: 'こぶしがたけ', elev: 2475, lat: 35.90889, lon: 138.72861, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '三国境に位置する日本百名山。千曲川・荒川・富士川の3大河川の分水嶺です。',
+        routes: '毛木平〜千曲川源流、西沢渓谷〜徳ちゃん新道',
+        huts: [{ name: '甲武信小屋', desc: '山頂直下（シーズン営業・要予約）' }]
+      },
+      {
+        id: 'sanposan', name: '三宝山', kana: 'さんぽうざん', elev: 2483, lat: 35.91806, lon: 138.72306, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '標高2,483mを誇る埼玉県最高峰。甲武信ヶ岳の北側に連なる静かな山です。',
+        routes: '甲武信ヶ岳〜三宝山〜十文字峠', huts: []
+      },
+      {
+        id: 'bushinshiraiwa', name: '武信白岩山', kana: 'ぶしんしらいわやま', elev: 2280, lat: 35.93333, lon: 138.72194, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '奥秩父主脈の三宝山と十文字峠の間にある石灰岩の岩峰群。',
+        routes: '十文字峠〜武信白岩山〜三宝山', huts: []
+      },
+      {
+        id: 'shirataisan', name: '白泰山', kana: 'しらたいさん', elev: 1794, lat: 35.94000, lon: 138.79000, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '白泰尾根上の山。栃本関所から十文字峠へ続く歴史ある古道が通ります。',
+        routes: '栃本関所〜白泰山〜十文字峠', huts: []
+      },
+      {
+        id: 'akadake_chichibu', name: '赤岳（秩父）', kana: 'あかだけ', elev: 1250, lat: 36.00833, lon: 138.81667, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '両神山の南側、赤岩尾根・八丁峠方面に連なる岩峰。',
+        routes: '八丁峠〜赤岩尾根〜両神山', huts: []
+      },
+      {
+        id: 'ioudake_chichibu', name: '硫黄岳（秩父）', kana: 'いおうだけ', elev: 1320, lat: 36.01250, lon: 138.80500, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '赤岩尾根の険しい岩稜縦走路上にあるピーク。',
+        routes: '志賀坂峠〜八丁峠〜赤岩尾根', huts: []
+      },
+      {
+        id: 'ogurayama', name: '御座山', kana: 'おぐらさん', elev: 2112, lat: 36.03361, lon: 138.61861, type: 'peak', range: '秩父・奥秩父山系',
+        desc: '長野県境にそびえる日本二百名山。山頂の断崖絶壁と360度の大展望が魅力。',
+        routes: '白栗コース、栗生コース', huts: []
+      },
+      {
+        id: 'ryokamisan', name: '両神山', kana: 'りょうかみさん', elev: 1723, lat: 36.02361, lon: 138.84194, type: 'peak', range: '秩父・奥秩父山系',
+        desc: 'ノコギリ刃のような岩稜が連なる日本百名山。古くからの修験道の霊山です。',
+        routes: '日向大谷〜清滝小屋〜山頂', huts: [{ name: '清滝小屋', desc: '中腹（無人避難小屋）' }]
+      },
+
+      // --- 秩父・奥秩父山系（スポット・盆地：オレンジ） ---
+      {
+        id: 'chichibu_basin', name: '秩父盆地・市街地', kana: 'ちちぶぼんち', elev: 230, lat: 35.99222, lon: 139.08500, type: 'spot', range: '秩父・奥秩父山系',
+        desc: '武甲山の北側に広がる秩父地域の中心盆地。地質断層帯が観察できるジオパークです。',
+        routes: '西武秩父駅、秩父鉄道御花畑駅・秩父駅周辺', huts: []
+      },
+      {
+        id: 'hitsujiyama', name: '羊山丘陵（芝桜の丘）', kana: 'ひつじやまきゅうりょう', elev: 280, lat: 35.98500, lon: 139.09167, type: 'spot', range: '秩父・奥秩父山系',
+        desc: '市街を見下ろす丘陵地。春の芝桜で有名な羊山公園があります。',
+        routes: '西武秩父駅より徒歩約20分', huts: []
+      },
+      {
+        id: 'ogano', name: '小鹿野町（歌舞伎の里）', kana: 'おがのまち', elev: 270, lat: 36.01806, lon: 139.04306, type: 'spot', range: '秩父・奥秩父山系',
+        desc: '両神山の東麓に位置する町。小鹿野歌舞伎やダリア園、ようばけ崖が有名です。',
+        routes: '西武秩父駅よりバス運行', huts: []
+      }
+    ];
+
+    // 全地点の距離・方位・地球曲率補正
+    ALL_POIS.forEach(p => {
+      const { x, z } = latLonToLocalXZ(p.lat, p.lon);
+      p.x = x; p.z = z;
+      p.distMeters = Math.hypot(x, z);
+      p.distKm = p.distMeters / 1000;
+      let az = Math.atan2(x, -z) * RAD2DEG;
+      if (az < 0) az += 360;
+      p.azimuth = az;
+      const dirs = ['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];
+      p.dir16 = dirs[Math.round(az / 22.5) % 16];
+      p.effectiveY = p.elev - curvatureDrop(p.distMeters);
+      p.angleDeg = Math.atan2(p.effectiveY - (OBSERVER.groundElev + OBSERVER.eyeOffset), p.distMeters) * RAD2DEG;
+    });
+
+    // Three.js 初期化
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x8ec5fc);
+    scene.fog = new THREE.FogExp2(0xb5d7f7, 0.000018);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 5, 140000);
+    const eyeY = OBSERVER.groundElev + OBSERVER.eyeOffset;
+    camera.position.set(0, eyeY, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const sun = new THREE.DirectionalLight(0xfffaed, 1.45);
+    sun.position.set(-30000, 35000, 20000);
+    scene.add(sun);
+    scene.add(new THREE.HemisphereLight(0xdbeafe, 0x334155, 0.8));
+
+    // 丹沢＆秩父の3Dリアル地形メッシュ構築
+    const terrainGroup = new THREE.Group();
+    scene.add(terrainGroup);
+
+    function buildWideTerrain() {
+      const w = 110000, d = 100000;
+      const res = 280;
+      const geo = new THREE.PlaneGeometry(w, d, res, res);
+      geo.rotateX(-Math.PI / 2);
+
+      const pos = geo.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i) - 42000;
+        const vz = pos.getZ(i) - 15000;
+        pos.setX(i, vx);
+        pos.setZ(i, vz);
+
+        let rawElev = 105.0;
+
+        ALL_POIS.filter(p => p.type === 'peak').forEach(m => {
+          const dM = Math.hypot(vx - m.x, vz - m.z);
+          const sigma = Math.max(2800, m.elev * 2.8);
+          const h = (m.elev - 100) * Math.exp(-(dM * dM) / (2 * sigma * sigma));
+          rawElev = Math.max(rawElev, 105 + h);
+        });
+
+        const distFromCenter = Math.hypot(vx + 35000, vz + 5000);
+        if (distFromCenter < 50000) {
+          rawElev += Math.sin(vx * 0.00045) * Math.cos(vz * 0.00045) * 140;
+        }
+
+        const distFromObs = Math.hypot(vx, vz);
+        const effH = Math.max(15, rawElev - curvatureDrop(distFromObs));
+        pos.setY(i, effH);
+
+        const rRatio = Math.min(1.0, Math.max(0.0, (rawElev - 300) / 1800));
+        colors[i * 3]     = 0.18 + rRatio * 0.28;
+        colors[i * 3 + 1] = 0.46 - rRatio * 0.12;
+        colors[i * 3 + 2] = 0.24 + rRatio * 0.14;
+      }
+
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geo.computeVertexNormals();
+
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true, roughness: 0.85, metalness: 0.05
+      });
+      terrainGroup.add(new THREE.Mesh(geo, mat));
+    }
+    buildWideTerrain();
+
+    // 3Dピン＆HTMLラベル生成
+    const labelLayer = document.getElementById('label-layer');
+    const markerGroup = new THREE.Group();
+    scene.add(markerGroup);
+
+    ALL_POIS.forEach(p => {
+      const isPeak = (p.type === 'peak');
+      const pinColor = isPeak ? 0x38bdf8 : 0xfb923c;
+      const pin = new THREE.Mesh(
+        new THREE.SphereGeometry(isPeak ? 55 : 36, 10, 10),
+        new THREE.MeshBasicMaterial({ color: pinColor })
+      );
+      pin.position.set(p.x, p.effectiveY, p.z);
+      markerGroup.add(pin);
+      p.pin = pin;
+
+      const el = document.createElement('div');
+      el.className = `poi-label ${p.type}`;
+      el.innerHTML = `
+        <div class="poi-box">
+          <span class="poi-name">${p.name}</span>
+          <span class="poi-elev">${p.elev}m</span>
+        </div>
+        <div class="poi-stem"></div>
+        <div class="poi-dot"></div>
+      `;
+      el.addEventListener('click', () => openDetail(p));
+      labelLayer.appendChild(el);
+      p.el = el;
+    });
+
+    // 詳細パネル表示（オレンジマーカー時はタイトル文字もオレンジ色に切り替え）
+    const detailPanel = document.getElementById('detail-panel');
+    function openDetail(p) {
+      detailPanel.classList.add('open');
+
+      const isOrange = (p.type === 'spot');
+      detailPanel.classList.toggle('theme-orange', isOrange);
+
+      const catEl = document.getElementById('dp-category');
+      catEl.textContent = `${p.range} — ${p.type === 'peak' ? '山頂ピーク' : '峠・ジオスポット・施設'}`;
+      catEl.style.color = isOrange ? 'var(--accent-orange)' : 'var(--accent-blue)';
+
+      document.getElementById('dp-name').textContent = p.name;
+      document.getElementById('dp-kana').textContent = p.kana;
+      document.getElementById('dp-elev').textContent = `${p.elev} m`;
+      document.getElementById('dp-dist').textContent = `${p.distKm.toFixed(1)} km`;
+      document.getElementById('dp-az').textContent = `${p.azimuth.toFixed(1)}° (${p.dir16})`;
+      document.getElementById('dp-angle').textContent = `${p.angleDeg.toFixed(2)}°`;
+      document.getElementById('dp-desc').textContent = p.desc;
+      document.getElementById('dp-routes').textContent = p.routes;
+
+      const hutsEl = document.getElementById('dp-huts');
+      if (!p.huts || p.huts.length === 0) {
+        hutsEl.innerHTML = '<div style="color:var(--text-muted);">山小屋・営業施設なし</div>';
+      } else {
+        hutsEl.innerHTML = p.huts.map(h => `<div class="hut-card"><strong>${h.name}</strong><br><span style="color:#cbd5e1;">${h.desc}</span></div>`).join('');
+      }
+
+      document.getElementById('dp-links').innerHTML = `
+        <a href="https://maps.gsi.go.jp/#14/${p.lat}/${p.lon}/" target="_blank" style="color:${isOrange ? 'var(--accent-orange)' : 'var(--accent-blue)'}; margin-right:12px;">国土地理院地図で確認</a>
+        <a href="https://ja.wikipedia.org/wiki/${encodeURIComponent(p.name)}" target="_blank" style="color:${isOrange ? 'var(--accent-orange)' : 'var(--accent-blue)'};">Wikipedia</a>
+      `;
+
+      ALL_POIS.forEach(item => item.el.classList.toggle('selected', item === p));
+    }
+
+    document.getElementById('dp-close-btn').addEventListener('click', () => {
+      detailPanel.classList.remove('open');
+      ALL_POIS.forEach(item => item.el.classList.remove('selected'));
+    });
+
+    // カメラ操作（初期視点：丹沢全景 232°）
+    let azDeg = 232.0;
+    let pitchDeg = 2.4;
+    let targetAz = 232.0;
+    let targetPitch = 2.4;
+    let targetFov = 38.0;
+    let isDragging = false;
+    let prevX = 0, prevY = 0;
+
+    window.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target.closest('#detail-panel') || e.target.closest('.app-header')) return;
+      isDragging = true;
+      prevX = e.clientX; prevY = e.clientY;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevX;
+      const dy = e.clientY - prevY;
+      prevX = e.clientX; prevY = e.clientY;
+      const factor = (camera.fov / 45.0) * 0.12;
+      targetAz = (targetAz - dx * factor + 360) % 360;
+      targetPitch = Math.max(-10, Math.min(28, targetPitch + dy * factor));
+    });
+
+    window.addEventListener('pointerup', () => { isDragging = false; });
+
+    window.addEventListener('wheel', (e) => {
+      targetFov = Math.max(12, Math.min(65, targetFov + e.deltaY * 0.03));
+    });
+
+    // 視点切り替えボタン
+    function setActivePresetBtn(btn) {
+      document.querySelectorAll('.app-header .btn').forEach(b => b.classList.remove('active', 'chichibu-btn'));
+      btn.classList.add('active');
+    }
+
+    document.getElementById('btn-tanzawa-full').addEventListener('click', (e) => {
+      setActivePresetBtn(e.currentTarget);
+      targetAz = 232.0; targetPitch = 2.4; targetFov = 38.0;
+    });
+    document.getElementById('btn-chichibu-full').addEventListener('click', (e) => {
+      setActivePresetBtn(e.currentTarget);
+      e.currentTarget.classList.add('chichibu-btn');
+      targetAz = 302.0; targetPitch = 2.0; targetFov = 42.0;
+    });
+    document.getElementById('btn-focus-oyama').addEventListener('click', (e) => {
+      setActivePresetBtn(e.currentTarget);
+      targetAz = 226.5; targetPitch = 2.8; targetFov = 20.0;
+    });
+    document.getElementById('btn-focus-tonodake').addEventListener('click', (e) => {
+      setActivePresetBtn(e.currentTarget);
+      targetAz = 239.0; targetPitch = 2.5; targetFov = 22.0;
+    });
+    document.getElementById('btn-focus-chichibu-main').addEventListener('click', (e) => {
+      setActivePresetBtn(e.currentTarget);
+      e.currentTarget.classList.add('chichibu-btn');
+      targetAz = 304.5; targetPitch = 2.2; targetFov = 20.0;
+    });
+
+    // 表示切り替えトグル
+    let showPeaks = true;
+    let showSpots = true;
+    const btnTogglePeaks = document.getElementById('btn-toggle-peaks');
+    const btnToggleSpots = document.getElementById('btn-toggle-spots');
+
+    btnTogglePeaks.addEventListener('click', () => {
+      showPeaks = !showPeaks;
+      btnTogglePeaks.classList.toggle('active', showPeaks);
+      btnTogglePeaks.textContent = showPeaks ? '山頂ピーク: ON' : '山頂ピーク: OFF';
+      ALL_POIS.filter(p => p.type === 'peak').forEach(p => {
+        p.pin.visible = showPeaks;
+        p.el.style.display = showPeaks ? 'flex' : 'none';
+      });
+    });
+
+    btnToggleSpots.addEventListener('click', () => {
+      showSpots = !showSpots;
+      btnToggleSpots.classList.toggle('active', showSpots);
+      btnToggleSpots.textContent = showSpots ? '峠・スポット: ON' : '峠・スポット: OFF';
+      ALL_POIS.filter(p => p.type === 'spot').forEach(p => {
+        p.pin.visible = showSpots;
+        p.el.style.display = showSpots ? 'flex' : 'none';
+      });
+    });
+
+    // 方位コンパス＆ミニマップ描画
+    const compassCanvas = document.getElementById('compass-canvas');
+    const compCtx = compassCanvas.getContext('2d');
+    const mmCanvas = document.getElementById('minimap-canvas');
+    const mmCtx = mmCanvas.getContext('2d');
+
+    function drawCompass(az) {
+      compCtx.clearRect(0, 0, 280, 28);
+      compCtx.fillStyle = '#fff';
+      compCtx.font = 'bold 11px sans-serif';
+      compCtx.textAlign = 'center';
+      const marks = [
+        { d: 215, l: '南西' }, { d: 226, l: '【大山】' }, { d: 232, l: '【表尾根】' },
+        { d: 239, l: '【塔ノ岳】' }, { d: 270, l: '西' }, { d: 302, l: '【奥秩父】' },
+        { d: 308, l: '【雲取山】' }, { d: 315, l: '北西' }, { d: 327, l: '【武甲山】' }
+      ];
+      marks.forEach(m => {
+        let diff = m.d - az;
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        const x = 140 + diff * 4.0;
+        if (x >= 0 && x <= 280) {
+          compCtx.fillStyle = m.l.includes('【') ? (m.d > 260 ? '#fb923c' : '#38bdf8') : '#cbd5e1';
+          compCtx.fillText(m.l, x, 14);
+        }
+      });
+      compCtx.fillStyle = az > 270 ? '#fb923c' : '#38bdf8';
+      compCtx.fillRect(138, 20, 4, 8);
+    }
+
+    function drawMinimap(az, fov) {
+      mmCtx.clearRect(0, 0, 200, 200);
+      const ox = 165, oy = 155;
+      const scale = 1.85;
+
+      mmCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+      [25, 50, 75].forEach(km => {
+        mmCtx.beginPath();
+        mmCtx.arc(ox, oy, km * scale, 0, Math.PI * 2);
+        mmCtx.stroke();
+      });
+
+      const a1 = (az - fov / 2 - 90) * DEG2RAD;
+      const a2 = (az + fov / 2 - 90) * DEG2RAD;
+      mmCtx.fillStyle = az > 270 ? 'rgba(251, 146, 60, 0.22)' : 'rgba(56, 189, 248, 0.22)';
+      mmCtx.beginPath();
+      mmCtx.moveTo(ox, oy);
+      mmCtx.arc(ox, oy, 85 * scale, a1, a2);
+      mmCtx.closePath();
+      mmCtx.fill();
+
+      ALL_POIS.forEach(p => {
+        const mx = ox + (p.x / 1000) * scale;
+        const my = oy + (p.z / 1000) * scale;
+        mmCtx.fillStyle = p.type === 'peak' ? (p.range.includes('丹沢') ? '#38bdf8' : '#34d399') : '#fb923c';
+        mmCtx.beginPath();
+        mmCtx.arc(mx, my, p.type === 'peak' ? 2.8 : 2.0, 0, Math.PI * 2);
+        mmCtx.fill();
+      });
+
+      mmCtx.fillStyle = '#f43f5e';
+      mmCtx.beginPath();
+      mmCtx.arc(ox, oy, 4.2, 0, Math.PI * 2);
+      mmCtx.fill();
+    }
+
+    // アニメーションループ（ラベル衝突回避スタッキング機能付き）
+    function animate() {
+      requestAnimationFrame(animate);
+
+      let dAz = targetAz - azDeg;
+      if (dAz > 180) dAz -= 360;
+      if (dAz < -180) dAz += 360;
+      azDeg = (azDeg + dAz * 0.12 + 360) % 360;
+      pitchDeg += (targetPitch - pitchDeg) * 0.12;
+      camera.fov += (targetFov - camera.fov) * 0.12;
+      camera.updateProjectionMatrix();
+
+      const lookDist = 1000;
+      const azR = azDeg * DEG2RAD;
+      const pitchR = pitchDeg * DEG2RAD;
+      camera.lookAt(
+        Math.sin(azR) * Math.cos(pitchR) * lookDist,
+        eyeY + Math.sin(pitchR) * lookDist,
+        -Math.cos(azR) * Math.cos(pitchR) * lookDist
+      );
+
+      drawCompass(azDeg);
+      drawMinimap(azDeg, camera.fov);
+
+      const halfW = window.innerWidth / 2;
+      const halfH = window.innerHeight / 2;
+      const placed = [];
+
+      ALL_POIS.forEach(p => {
+        const isShown = (p.type === 'peak' && showPeaks) || (p.type === 'spot' && showSpots);
+        if (!isShown) {
+          p.el.style.display = 'none';
+          return;
+        }
+
+        const v = new THREE.Vector3(p.x, p.effectiveY, p.z).project(camera);
+        if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) {
+          p.el.style.display = 'none';
+          return;
+        }
+
+        const sx = (v.x * halfW) + halfW;
+        const sy = -(v.y * halfH) + halfH;
+
+        let stemH = p.type === 'peak' ? 18 : 12;
+        placed.forEach(b => {
+          if (Math.abs(sx - b.x) < 85 && Math.abs(sy - b.y) < 32) {
+            stemH += 22;
+          }
+        });
+        placed.push({ x: sx, y: sy });
+
+        const stemEl = p.el.querySelector('.poi-stem');
+        if (stemEl) stemEl.style.height = `${stemH}px`;
+
+        p.el.style.display = 'flex';
+        p.el.style.left = `${sx}px`;
+        p.el.style.top = `${sy}px`;
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
