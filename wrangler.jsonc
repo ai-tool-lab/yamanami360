@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers の静的アセット配信設定（ビルド不要・リポジトリ直下をそのまま配信）
+  "name": "yamanami360",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "."
+  },
+  // xxx.workers.dev の公開URLを有効にする
+  "workers_dev": true
+}
