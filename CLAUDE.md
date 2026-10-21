@@ -4,11 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 概要
 
-「山並み360°｜淵野辺」— JR淵野辺駅から見える丹沢山系・秩父/奥秩父山系を3Dパノラマで表示する、単一HTMLの静的Webアプリ。ビルド工程・パッケージ管理・テスト・Lint は存在しない。git リポジトリでもない。
+「山並み360°｜淵野辺」— JR淵野辺駅から見える丹沢山系・秩父/奥秩父山系を3Dパノラマで表示する、単一HTMLの静的Webアプリ。ビルド工程・パッケージ管理・テスト・Lint は存在しない。
 
 - `index.html` — アプリ全体（CSS・HTML・JS すべてインライン）
 - `favicon.jpg` — アイコン原画（2048px、余白付き）。`index.html` からは参照しない
 - `favicon.ico` / `icon-192.png` / `apple-touch-icon.png` — `favicon.jpg` の角丸アイコン部分を切り出し、紫〜橙のグラデーションを水色〜若葉の緑系に、背景を空色のグラデーションに色変換して生成したもの（Pillow 使用）。原画を差し替えたら再生成が必要
+
+## デプロイ
+
+GitHub `ai-tool-lab/yamanami360`（private）の `main` に push すると、Cloudflare Workers が自動でデプロイする（公開URL: https://yamanami360.unfactory.workers.dev/）。`wrangler.jsonc` でリポジトリ直下を静的アセットとして配信しており、配信したくないファイル（ドキュメント・原画など）は `.assetsignore` に追加する。
 
 ## 実行方法
 
